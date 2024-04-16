@@ -1,0 +1,10 @@
+dash[compress]==2.16.1
+dash-vtk==0.0.9.post1+scalar.bar
+dash-core-components==2.0.0
+gunicorn==21.2.0
+matplotlib==3.8.4
+numpy==1.26.4
+pyvista==0.43.5
+dash_bootstrap_components==1.6.0
+dash-pane-split==0.1.6
+dash_daq==0.5.0

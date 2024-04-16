@@ -1,0 +1,10 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true
+  },
+  "flake8.args": ["--max-line-length=240", "--ignore=E501"],
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  }
+}

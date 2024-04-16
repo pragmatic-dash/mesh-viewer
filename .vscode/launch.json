@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Caddy",
+      "command": "caddy run --config Caddyfile",
+      "request": "launch",
+      "type": "node-terminal"
+    },
+    {
+      "name": "Web",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "env": {
+        "FLASK_APP": "app:server",
+        "FLASK_DEBUG": "1"
+      },
+      "cwd": "${workspaceFolder}",
+      "args": ["run", "-p", "50002", "--no-debugger"],
+      "jinja": true,
+      "justMyCode": true
+    }
+  ]
+}
