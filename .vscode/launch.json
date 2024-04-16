@@ -14,7 +14,10 @@
       "module": "flask",
       "env": {
         "FLASK_APP": "app:server",
-        "FLASK_DEBUG": "1"
+        "FLASK_DEBUG": "true",
+        "DASH_DEBUG": "true",
+        "DASH_HOT_RELOAD": "true",
+        "DASH_UI": "true"
       },
       "cwd": "${workspaceFolder}",
       "args": ["run", "-p", "50002", "--no-debugger"],

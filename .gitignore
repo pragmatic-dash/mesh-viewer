@@ -1,3 +1,4 @@
+examples/
 local_config.py
 __pycache__
 *.pyc

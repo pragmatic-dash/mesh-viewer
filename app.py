@@ -1,136 +1,359 @@
+from copy import deepcopy
+from urllib.parse import parse_qs
+from pathlib import Path
+
+from matplotlib import colormaps
 import pyvista as pv
-
-from dash import html, dcc, Input, Output, Patch
-from dash_vtk.utils import to_mesh_state, preset_as_options
-import dash_bootstrap_components as dbc
-import dash
-import dash_vtk
+from dash import html, dcc, no_update, ctx
+from dash import Dash, Patch, Input, Output, State
+from dash.exceptions import PreventUpdate
 import dash_daq as daq
+import dash_bootstrap_components as dbc
+from dash_vtk.utils import preset_as_options
 from dash_pane_split import DashPaneSplit
-from matplotlib import colors
+from dash_breakpoints import WindowBreakpoints
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-server = app.server
-
-
-grid = pv.read("examples/simple.vtk")
-RepresentationType = {
-    "Points": 0,
-    "Wireframe": 1,
-    "Surface": 2,
-}
-
-
-def get_geometry_representation(
-    color_array_name="T",
-    color_map="Cool to Warm",
-    opacity=1,
-    point_size=1,
-    line_width=1,
-    show_scalar_bar=True,
-    representation=RepresentationType["Surface"],
-):
-    color_array_name = color_array_name or grid.array_names[0]
-    mesh_state = to_mesh_state(grid, color_array_name)
-    return dash_vtk.GeometryRepresentation(
-        [
-            dash_vtk.Mesh(state=mesh_state, id="mesh"),
-        ],
-        id="repr",
-        showScalarBar=show_scalar_bar,
-        scalarBarTitle=color_array_name,
-        mapper={
-            "scalarMode": 3,
-            "colorByArrayName": color_array_name,
-            "scalarVisibility": True,
-            "interpolateScalarsBeforeMapping": True,
-        },
-        actor={},
-        colorMapPreset=color_map,
-        colorDataRange=mesh_state["field"]["dataRange"],
-        property={
-            "edgeVisibility": False,
-            "pointSize": point_size,
-            "lineWidth": line_width,
-            "opacity": opacity,
-            "representation": representation,
-        },
-    )
-
-
-vtk_view = dash_vtk.View(
-    id="vtk-view",
-    background=colors.hex2color("#CFDEE3"),
-    children=[get_geometry_representation()],
+from consts import RepresentationType, RenderMode
+from consts import (
+    ARTIFACT_STORE_ID,
+    VTK_CONTAINER_ID,
+    MAIN_CONTAINER_ID,
+    URL_LOCATION_ID,
+    PLAY_BTN_ID,
+    PLAY_INTERVAL_ID,
+    TIME_SLIDER_ID,
+    RENDER_MODE_DROPDOWN_ID,
+    COLOR_MAP_DROPDOWN_ID,
+    COLOR_ARRAY_NAME_DROPDOWN_ID,
+    REPRESENTATION_TYPE_DROPDOWN_ID,
+    OPACITY_SLIDER_ID,
+    POINT_SIZE_SLIDER_ID,
+    LINE_WIDTH_SLIDER_ID,
+    SHOW_SCALAR_BAR_ID,
+    BACKGROUND_COLOR_PICKER_ID,
+    OPTIONS_STORE_ID,
+    ROTATE_X_SLIDER_ID,
+    ROTATE_Y_SLIDER_ID,
 )
+from vdisplay import ensure_vdisplay
+from timeseries import TimeSeriesMesh
+from representation import MeshRepresentation, get_scalar_names
+
+AVIALABLE_CMAPS_INTERACTIVE = [
+    i for i in preset_as_options if i["label"] not in ("KAAMS",)
+]
+
+AVIALABLE_CMAPS_STATIC = []
+for cmap in colormaps:
+    try:
+        pv.LookupTable(cmap=cmap)
+        AVIALABLE_CMAPS_STATIC.append({"label": cmap, "value": cmap})
+    except Exception:
+        pass
+
+
+ROOT_PATH = Path(__file__).parent / "examples"
+
+
+def get_option(options, name):
+    return options.get(str(name), None)
+
+
+def set_option(options, name, value):
+    options[str(name)] = value
+
+
+def exists_option(options, name):
+    return str(name) in options
+
+
+app = Dash(
+    __name__,
+    title="Mesh Viewer",
+    compress=True,
+    serve_locally=True,
+    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
+    meta_tags=[
+        {"name": "viewport", "content": "width=device-width, initial-scale=1.0"}
+    ],
+)
+server = app.server
+ensure_vdisplay(force=True)
 
 
 @app.callback(
-    Output("vtk-view", "children"),
-    Input("color-array", "value"),
-    Input("color-map", "value"),
-    Input("opacity", "value"),
-    Input("representation", "value"),
-    Input("point-size", "value"),
-    Input("line-size", "value"),
-    Input("scalar-bar", "on"),
+    Output("viewport", "data"),
+    Input("breakpoints", "width"),
+    Input("breakpoints", "height"),
+)
+def save_viewport(width: str, height: str):
+    return {
+        "width": width,
+        "height": height,
+    }
+
+
+@app.callback(
+    [
+        OPTIONS_STORE_ID.get_output("data"),
+        VTK_CONTAINER_ID.get_output("children"),
+        COLOR_MAP_DROPDOWN_ID.get_output("options"),
+        COLOR_MAP_DROPDOWN_ID.get_output("value"),
+    ],
+    [
+        RENDER_MODE_DROPDOWN_ID.get_input("value"),
+        COLOR_ARRAY_NAME_DROPDOWN_ID.get_input("value"),
+        COLOR_MAP_DROPDOWN_ID.get_input("value"),
+        OPACITY_SLIDER_ID.get_input("value"),
+        REPRESENTATION_TYPE_DROPDOWN_ID.get_input("value"),
+        POINT_SIZE_SLIDER_ID.get_input("value"),
+        LINE_WIDTH_SLIDER_ID.get_input("value"),
+        SHOW_SCALAR_BAR_ID.get_input("on"),
+        TIME_SLIDER_ID.get_input("value"),
+        BACKGROUND_COLOR_PICKER_ID.get_input("value"),
+        ROTATE_X_SLIDER_ID.get_input("value"),
+        ROTATE_Y_SLIDER_ID.get_input("value"),
+        State("viewport", "data"),
+        OPTIONS_STORE_ID.get_state("data"),
+    ],
     prevent_initial_call=True,
 )
-def update_render_options(
+def rerender(
+    render_mode,
     color_array_name,
     color_map,
     opacity,
-    representation,
+    representation_type,
     point_size,
     line_size,
     show_scalar_bar,
+    n_steps,
+    background_color,
+    rotate_x,
+    rotate_y,
+    viewport,
+    saved_options,
 ):
-    return [
-        get_geometry_representation(
-            color_array_name=color_array_name,
-            color_map=color_map,
-            opacity=opacity,
-            representation=representation,
-            point_size=point_size,
-            line_width=line_size,
-            show_scalar_bar=show_scalar_bar,
+    options = Patch()
+    artifact = get_option(saved_options, ARTIFACT_STORE_ID)
+
+    if ctx.triggered:
+        trigger = ctx.triggered[0]
+        trigger_id = trigger["prop_id"].rsplit(".", 1)[0]
+        trigger_value = trigger["value"]
+        if get_option(saved_options, trigger_id) == trigger_value:
+            raise PreventUpdate("No change")
+        set_option(options, trigger_id, trigger_value)
+
+    if ctx.triggered_id == RENDER_MODE_DROPDOWN_ID.get_identifier():
+        colormaps = (
+            AVIALABLE_CMAPS_STATIC
+            if render_mode == RenderMode.Static.value
+            else AVIALABLE_CMAPS_INTERACTIVE
         )
-    ]
+        color_map = "coolwarm"
+        set_option(options, COLOR_MAP_DROPDOWN_ID, color_map)
+    else:
+        colormaps = no_update
+
+    if not artifact:
+        raise PreventUpdate("No artifact specified")
+
+    filepath = ROOT_PATH / artifact
+    if not filepath.exists():
+        raise PreventUpdate("File does not exist")
+
+    color_data_range = None
+    if artifact.endswith(".vtm.series"):
+        time_series = TimeSeriesMesh(filepath)
+        if n_steps >= time_series.n_slices:
+            raise PreventUpdate("No more slices")
+        grid = time_series.read(n_steps)
+        if color_array_name:
+            ranges = time_series.get_ranges()
+            color_data_range = ranges.get(color_array_name)
+    else:
+        grid = pv.read(filepath)
+    representation = MeshRepresentation(
+        grid,
+        color_array_name=color_array_name,
+        render_mode=render_mode,
+        color_map=color_map,
+        opacity=opacity,
+        rotate_x=rotate_x,
+        rotate_y=rotate_y,
+        point_size=point_size,
+        background_color=background_color["hex"],
+        line_width=line_size,
+        show_scalar_bar=show_scalar_bar,
+        representation_type=representation_type,
+    )
+    return (
+        options,
+        representation.get_view(color_data_range=color_data_range, viewport=viewport),
+        colormaps,
+        color_map,
+    )
 
 
 @app.callback(
-    Output("vtk-view", "background"),
-    Output("vtk-view", "triggerRender"),
-    Input("vtk-view", "triggerRender"),
-    Input("background", "value"),
+    [
+        OPTIONS_STORE_ID.get_output("data"),
+        PLAY_INTERVAL_ID.get_output("max_intervals"),
+        PLAY_INTERVAL_ID.get_output("n_intervals"),
+        PLAY_INTERVAL_ID.get_output("disabled"),
+        PLAY_BTN_ID.get_output("children"),
+    ],
+    [
+        PLAY_BTN_ID.get_input("n_clicks"),
+        TIME_SLIDER_ID.get_state("value"),
+        PLAY_INTERVAL_ID.get_state("disabled"),
+        OPTIONS_STORE_ID.get_state("data"),
+    ],
     prevent_initial_call=True,
 )
-def update_background(render_count, background):
-    print(background)
-    rgb = background["rgb"]
-    return [rgb["r"] / 255, rgb["g"] / 255, rgb["b"] / 255, rgb["a"]], (
-        render_count or 0
-    ) + 1
+def play_time_series(n_clicks, n_steps, interval_disabled, saved_options):
+    if not n_clicks:
+        raise PreventUpdate("No click")
+
+    artifact = get_option(saved_options, ARTIFACT_STORE_ID)
+    if not artifact:
+        raise PreventUpdate("No artifact specified")
+
+    filepath = ROOT_PATH / artifact
+    if not filepath.exists():
+        raise PreventUpdate("File does not exist")
+
+    if not artifact.endswith(".vtm.series"):
+        raise PreventUpdate("Not a time series")
+
+    time_series = TimeSeriesMesh(filepath)
+    if interval_disabled:
+        options = Patch()
+        n_intervals = n_steps if n_steps < time_series.n_slices - 1 else 0
+        set_option(options, PLAY_INTERVAL_ID, n_intervals)
+        return (
+            options,
+            time_series.n_slices,
+            n_intervals,
+            False,
+            html.I(
+                className="bi bi-stop-btn-fill",
+                disable_n_clicks=True,
+                style={
+                    "fontSize": "1.5rem",
+                    "color": "black",
+                },
+            ),
+        )
+    else:
+        return (
+            no_update,
+            no_update,
+            no_update,
+            True,
+            html.I(
+                className="bi bi-collection-play-fill",
+                disable_n_clicks=True,
+                style={
+                    "fontSize": "1.5rem",
+                    "color": "black",
+                },
+            ),
+        )
 
 
+@app.callback(
+    [
+        OPTIONS_STORE_ID.get_output("data"),
+        TIME_SLIDER_ID.get_output("value"),
+        PLAY_INTERVAL_ID.get_output("n_intervals"),
+    ],
+    [
+        PLAY_INTERVAL_ID.get_input("n_intervals"),
+        TIME_SLIDER_ID.get_input("value"),
+    ],
+    prevent_initial_call=True,
+)
+def tick_time_series(n_intervals, n_steps):
+    options = Patch()
+
+    set_option(options, TIME_SLIDER_ID, n_steps)
+    set_option(options, PLAY_INTERVAL_ID, n_intervals)
+
+    if ctx.triggered_id == PLAY_INTERVAL_ID.get_identifier():
+        return options, n_intervals, no_update
+    else:
+        return options, no_update, n_steps
+
+
+DEFAULT_OPTIONS = {
+    str(PLAY_INTERVAL_ID): 0,
+    str(RENDER_MODE_DROPDOWN_ID): RenderMode.Interactive.value,
+    str(COLOR_MAP_DROPDOWN_ID): "coolwarm",
+    str(COLOR_ARRAY_NAME_DROPDOWN_ID): None,
+    str(REPRESENTATION_TYPE_DROPDOWN_ID): RepresentationType.Surface.value,
+    str(OPACITY_SLIDER_ID): 1.0,
+    str(POINT_SIZE_SLIDER_ID): 1,
+    str(LINE_WIDTH_SLIDER_ID): 1,
+    str(SHOW_SCALAR_BAR_ID): True,
+    str(BACKGROUND_COLOR_PICKER_ID): dict(hex="#000000"),
+    str(ROTATE_X_SLIDER_ID): 0,
+    str(ROTATE_Y_SLIDER_ID): 0,
+}
 app.layout = html.Div(
     [
+        WindowBreakpoints(
+            id="breakpoints",
+        ),
+        dcc.Store(id="viewport", storage_type="memory"),
+        dcc.Location(id=URL_LOCATION_ID.get_identifier(), refresh=False),
+        dcc.Store(
+            id=OPTIONS_STORE_ID.get_identifier(),
+            storage_type="memory",
+            data=DEFAULT_OPTIONS,
+        ),
+        dcc.Interval(
+            id=PLAY_INTERVAL_ID.get_identifier(),
+            n_intervals=DEFAULT_OPTIONS[str(PLAY_INTERVAL_ID)],
+            interval=1000,
+            max_intervals=0,
+            disabled=True,
+        ),
         DashPaneSplit(
             id="split",
             mainStyle={"width": "100%", "height": "100%"},
-            mainChildren=[
-                vtk_view,
-            ],
+            mainChildren=html.Div(
+                id=MAIN_CONTAINER_ID.get_identifier(),
+                style={"height": "100%", "width": "100%", "margin": 0, "padding": 0},
+            ),
             sidebarTitle="Options",
             sidebarChildren=html.Div(
                 [
                     html.Div(
                         [
+                            html.Caption("Render Mode"),
+                            dcc.Dropdown(
+                                id=RENDER_MODE_DROPDOWN_ID.get_identifier(),
+                                options=[
+                                    {"label": name, "value": option.value}
+                                    for name, option in RenderMode.__members__.items()
+                                ],
+                                value=DEFAULT_OPTIONS[str(RENDER_MODE_DROPDOWN_ID)],
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flex-direction": "column",
+                        },
+                    ),
+                    html.Div(
+                        [
                             html.Caption("Color Map"),
                             dcc.Dropdown(
-                                id="color-map",
-                                options=preset_as_options,
-                                value="Cool to Warm",
+                                id=COLOR_MAP_DROPDOWN_ID.get_identifier(),
+                                options=[{"label": "coolwarm", "value": "coolwarm"}],
+                                value=DEFAULT_OPTIONS[str(COLOR_MAP_DROPDOWN_ID)],
                             ),
                         ],
                         style={
@@ -142,12 +365,11 @@ app.layout = html.Div(
                         [
                             html.Caption("Color Array"),
                             dcc.Dropdown(
-                                id="color-array",
-                                options=[
-                                    {"label": name, "value": name}
-                                    for name in grid.array_names
+                                id=COLOR_ARRAY_NAME_DROPDOWN_ID.get_identifier(),
+                                options=[],
+                                value=DEFAULT_OPTIONS[
+                                    str(COLOR_ARRAY_NAME_DROPDOWN_ID)
                                 ],
-                                value=grid.array_names[0],
                             ),
                         ],
                         style={
@@ -157,14 +379,16 @@ app.layout = html.Div(
                     ),
                     html.Div(
                         [
-                            html.Caption("Representation"),
+                            html.Caption("Representation Type"),
                             dcc.Dropdown(
-                                id="representation",
+                                id=REPRESENTATION_TYPE_DROPDOWN_ID.get_identifier(),
                                 options=[
-                                    {"label": name, "value": value}
-                                    for name, value in RepresentationType.items()
+                                    {"label": name, "value": option.value}
+                                    for name, option in RepresentationType.__members__.items()
                                 ],
-                                value=RepresentationType["Surface"],
+                                value=DEFAULT_OPTIONS[
+                                    str(REPRESENTATION_TYPE_DROPDOWN_ID)
+                                ],
                             ),
                         ],
                         style={
@@ -176,12 +400,12 @@ app.layout = html.Div(
                         [
                             html.Caption("Opacity"),
                             daq.Slider(
-                                id="opacity",
+                                id=OPACITY_SLIDER_ID.get_identifier(),
                                 size=215,
                                 min=0,
                                 max=1,
                                 step=0.1,
-                                value=1,
+                                value=DEFAULT_OPTIONS[str(OPACITY_SLIDER_ID)],
                                 marks={0: "0", 1: "1.0"},
                             ),
                         ],
@@ -195,11 +419,11 @@ app.layout = html.Div(
                             html.Caption("Point Size"),
                             daq.Slider(
                                 size=215,
-                                id="point-size",
+                                id=POINT_SIZE_SLIDER_ID.get_identifier(),
                                 min=1,
                                 max=10,
                                 step=1,
-                                value=1,
+                                value=DEFAULT_OPTIONS[str(POINT_SIZE_SLIDER_ID)],
                                 marks={i: str(i) for i in range(1, 11)},
                             ),
                         ],
@@ -213,11 +437,11 @@ app.layout = html.Div(
                             html.Caption("Line Size"),
                             daq.Slider(
                                 size=215,
-                                id="line-size",
+                                id=LINE_WIDTH_SLIDER_ID.get_identifier(),
                                 min=1,
                                 max=10,
                                 step=1,
-                                value=1,
+                                value=DEFAULT_OPTIONS[str(LINE_WIDTH_SLIDER_ID)],
                                 marks={i: str(i) for i in range(1, 11)},
                             ),
                         ],
@@ -230,8 +454,44 @@ app.layout = html.Div(
                         [
                             html.Caption("Show Scalar Bar"),
                             daq.BooleanSwitch(
-                                id="scalar-bar",
-                                on=True,
+                                id=SHOW_SCALAR_BAR_ID.get_identifier(),
+                                on=DEFAULT_OPTIONS[str(SHOW_SCALAR_BAR_ID)],
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flex-direction": "column",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Caption("Rotate X"),
+                            daq.Slider(
+                                size=215,
+                                min=0,
+                                max=360,
+                                step=1,
+                                value=get_option(DEFAULT_OPTIONS, ROTATE_X_SLIDER_ID),
+                                id=ROTATE_X_SLIDER_ID.get_identifier(),
+                                marks={i: str(i) for i in range(0, 361, 45)},
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flex-direction": "column",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Caption("Rotate Y"),
+                            daq.Slider(
+                                size=215,
+                                min=0,
+                                max=360,
+                                step=1,
+                                id=ROTATE_Y_SLIDER_ID.get_identifier(),
+                                value=get_option(DEFAULT_OPTIONS, ROTATE_Y_SLIDER_ID),
+                                marks={i: str(i) for i in range(0, 361, 45)},
                             ),
                         ],
                         style={
@@ -243,9 +503,9 @@ app.layout = html.Div(
                         [
                             html.Caption("Background"),
                             daq.ColorPicker(
-                                id="background",
+                                id=BACKGROUND_COLOR_PICKER_ID.get_identifier(),
                                 size=215,
-                                value=dict(hex="#CFDEE3"),
+                                value=DEFAULT_OPTIONS[str(BACKGROUND_COLOR_PICKER_ID)],
                             ),
                         ],
                         style={
@@ -268,11 +528,187 @@ app.layout = html.Div(
             sidebarMaxSize=250,
             sidebarDefaultSize=250,
             sidebarMinSize=250,
-        )
+        ),
     ],
-    style={"height": "100vh", "width": "100%"},
+    style={"height": "100vh", "width": "100%", "margin": 0, "padding": 0},
 )
 
 
+@app.callback(
+    [
+        OPTIONS_STORE_ID.get_output("data"),
+        MAIN_CONTAINER_ID.get_output("children"),
+        COLOR_ARRAY_NAME_DROPDOWN_ID.get_output("options"),
+        COLOR_ARRAY_NAME_DROPDOWN_ID.get_output("value"),
+        RENDER_MODE_DROPDOWN_ID.get_output("value"),
+        RENDER_MODE_DROPDOWN_ID.get_output("disabled"),
+        COLOR_MAP_DROPDOWN_ID.get_output("options"),
+    ],
+    [
+        URL_LOCATION_ID.get_input("search"),
+        State("viewport", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def viewer(search, viewport):
+    qs = parse_qs(search.lstrip("?"))
+    artifacts = qs.get("artifact")
+    if not artifacts:
+        raise PreventUpdate("No artifact specified")
+
+    artifact = artifacts[0]
+    filepath = ROOT_PATH / artifact
+    if not filepath.exists():
+        raise PreventUpdate("File does not exist")
+
+    options = deepcopy(DEFAULT_OPTIONS)
+
+    set_option(options, ARTIFACT_STORE_ID, artifact)
+    set_option(options, TIME_SLIDER_ID, 0)
+
+    color_data_range = None
+    color_array_name = None
+    array_names = []
+    if artifact.endswith(".vtm.series"):
+        time_series = TimeSeriesMesh(filepath)
+        grid = time_series.read(0)
+        array_names = get_scalar_names(grid)
+        if array_names:
+            color_array_name = array_names[0]
+            ranges = time_series.get_ranges()
+            color_data_range = ranges.get(color_array_name)
+    else:
+        grid = pv.read(filepath)
+        array_names = get_scalar_names(grid)
+        if array_names:
+            color_array_name = array_names[0]
+    set_option(options, COLOR_ARRAY_NAME_DROPDOWN_ID, color_array_name)
+
+    # TODO dynamic change render mode based on file size
+    render_mode = RenderMode.Static.value
+
+    colormaps = (
+        AVIALABLE_CMAPS_STATIC
+        if render_mode == RenderMode.Static.value
+        else AVIALABLE_CMAPS_INTERACTIVE
+    )
+    set_option(options, RENDER_MODE_DROPDOWN_ID, render_mode)
+
+    representation = MeshRepresentation(
+        grid,
+        render_mode=render_mode,
+        color_array_name=color_array_name,
+        background_color=options[str(BACKGROUND_COLOR_PICKER_ID)]["hex"],
+    )
+    vtk_view = representation.get_view(
+        color_data_range=color_data_range, viewport=viewport
+    )
+    if artifact.endswith(".vtm.series"):
+        vtk_view.style["height"] = "calc(100vh - 2rem)"
+        main_view = html.Div(
+            [
+                dbc.Row(
+                    [
+                        html.Div(
+                            dbc.Button(
+                                html.I(
+                                    className="bi bi-collection-play-fill",
+                                    disable_n_clicks=True,
+                                    style={
+                                        "fontSize": "1.5rem",
+                                        "color": "black",
+                                    },
+                                ),
+                                id=PLAY_BTN_ID.get_identifier(),
+                                className="d-flex align-items-center",
+                                color="link",
+                            ),
+                            style={
+                                "width": "3rem",
+                                "marginLeft": "1rem",
+                                "marginRight": "1rem",
+                            },
+                        ),
+                        html.Div(
+                            daq.Slider(
+                                id=TIME_SLIDER_ID.get_identifier(),
+                                min=0,
+                                step=1,
+                                size=len(time_series.info["files"]) * 35,
+                                targets={
+                                    i: str(time_series.info["files"][i]["time"])
+                                    for i in range(time_series.n_slices)
+                                },
+                                value=options.get(TIME_SLIDER_ID.get_identifier(), 0),
+                                max=time_series.n_slices - 1,
+                            ),
+                            style={
+                                "overflowX": "scroll",
+                                "paddingTop": "1.5rem",
+                            },
+                        ),
+                    ],
+                    style={
+                        "height": "3.5rem",
+                        "paddingTop": ".5rem",
+                        "width": "100%",
+                        "display": "flex",
+                        "flexDirection": "row",
+                        "flexWrap": "nowrap",
+                    },
+                ),
+                dbc.Row(
+                    vtk_view,
+                    style={
+                        "margin": 0,
+                        "padding": 0,
+                        "height": "100%",
+                        "width": "100%",
+                    },
+                    id=VTK_CONTAINER_ID.get_identifier(),
+                ),
+            ],
+            style={"height": "100%", "margin": 0, "padding": 0, "width": "100%"},
+        )
+    else:
+        main_view = html.Div(
+            [
+                html.Div(
+                    vtk_view,
+                    id=VTK_CONTAINER_ID.get_identifier(),
+                    style={
+                        "height": "100%",
+                        "width": "100%",
+                        "margin": 0,
+                        "padding": 0,
+                    },
+                ),
+                html.Div(
+                    [
+                        dcc.Slider(
+                            min=0,
+                            max=1,
+                            step=0.01,
+                            value=get_option(options, TIME_SLIDER_ID),
+                            id=TIME_SLIDER_ID.get_identifier(),
+                        ),
+                    ],
+                    style={"display": "none"},
+                ),
+            ],
+            style={"height": "100%", "width": "100%", "margin": 0, "padding": 0},
+        )
+
+    return (
+        options,
+        main_view,
+        [{"label": name, "value": name} for name in array_names],
+        color_array_name,
+        render_mode,
+        False,
+        colormaps,
+    )
+
+
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=8050)

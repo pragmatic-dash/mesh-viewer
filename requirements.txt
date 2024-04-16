@@ -8,3 +8,9 @@ pyvista==0.43.5
 dash_bootstrap_components==1.6.0
 dash-pane-split==0.1.6
 dash_daq==0.5.0
+meshio==5.3.5
+dash-id-utils==0.0.2
+sh==2.0.6
+dash_breakpoints==0.1.0
+dash-fullscreen==0.0.2
+

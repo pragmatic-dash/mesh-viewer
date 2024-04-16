@@ -2,7 +2,7 @@ FROM --platform=linux/amd64 registry.dp.tech/mlops/mirrors/continuumio/miniconda
 
 ADD sources.list /etc/apt/sources.list
 RUN apt-get update 
-RUN apt-get install gcc python3-dev -y
+RUN apt-get install gcc python3-dev libgl1-mesa-glx xvfb  -y
 
 RUN mkdir -p /app
 ADD requirements.txt /app/requirements.txt
