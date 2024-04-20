@@ -19,6 +19,7 @@ VTK_CONTAINER_ID = DashIDGenerator(type="view", name="vtk-container")
 MAIN_CONTAINER_ID = DashIDGenerator(type="view", name="main")
 MAIN_LOADING_ID = DashIDGenerator(type="loading", name="main")
 RERENDER_LOADING_ID = DashIDGenerator(type="loading", name="rerender")
+COLOR_MAP_VIEW_ID = DashIDGenerator(type="view", name="color-map")
 
 URL_LOCATION_ID = DashIDGenerator(type="location", name="url")
 PLAY_BTN_ID = DashIDGenerator(type="button", name="play")

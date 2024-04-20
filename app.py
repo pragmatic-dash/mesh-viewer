@@ -27,6 +27,7 @@ from consts import (
     TIME_SLIDER_ID,
     RENDER_MODE_DROPDOWN_ID,
     COLOR_MAP_DROPDOWN_ID,
+    COLOR_MAP_VIEW_ID,
     COLOR_ARRAY_NAME_DROPDOWN_ID,
     REPRESENTATION_TYPE_DROPDOWN_ID,
     OPACITY_SLIDER_ID,
@@ -436,9 +437,9 @@ app.layout = html.Div(
                                 id=COLOR_MAP_DROPDOWN_ID.get_identifier(),
                                 options=[{"label": "coolwarm", "value": "coolwarm"}],
                                 value=DEFAULT_OPTIONS[str(COLOR_MAP_DROPDOWN_ID)],
-                                style={},  # keep it
                             ),
                         ],
+                        id=COLOR_MAP_VIEW_ID.get_identifier(),
                         style={
                             "display": "flex",
                             "flexDirection": "column",
@@ -628,7 +629,7 @@ app.layout = html.Div(
         RENDER_MODE_DROPDOWN_ID.get_output("disabled"),
         COLOR_MAP_DROPDOWN_ID.get_output("options"),
         PLAY_INTERVAL_ID.get_output("interval"),
-        COLOR_MAP_DROPDOWN_ID.get_output("style"),
+        COLOR_MAP_VIEW_ID.get_output("style"),
     ],
     [
         URL_LOCATION_ID.get_input("search"),
@@ -669,9 +670,11 @@ def viewer(search, viewport):
         array_names = get_scalar_names(grid)
         if array_names:
             color_array_name = array_names[0]
-    colormap_style = Patch()
+    colormap_view_style = Patch()
     if not array_names:
-        colormap_style["display"] = "none"
+        colormap_view_style["display"] = "none"
+    else:
+        colormap_view_style["display"] = "flex"
     set_option(options, COLOR_ARRAY_NAME_DROPDOWN_ID, color_array_name)
 
     if grid.actual_memory_size > 1024 * 50:  # 50MB
@@ -802,7 +805,7 @@ def viewer(search, viewport):
         False,
         colormaps,
         interval,
-        colormap_style,
+        colormap_view_style,
     )
 
 
