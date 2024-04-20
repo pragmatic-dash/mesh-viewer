@@ -30,12 +30,12 @@ spec:
             - name: LAUNCHING_APPLICATION_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: mesh-viewer-crediential
+                  name: mesh-viewer-credentials
                   key: launching-application-token
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
-                  name: mesh-viewer-crediential
+                  name: mesh-viewer-credentials
                   key: redis-url
             - name: VAR_ROOT
               value: "/shared_data"

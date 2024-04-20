@@ -43,4 +43,11 @@ spec:
             limits:
               cpu: 4
               memory: 4Gi
+          volumeMounts:
+            - name: shared-data-volume
+              mountPath: /shared_data
       restartPolicy: Always
+      volumes:
+        - name: shared-data-volume
+          persistentVolumeClaim:
+            claimName: jfs-prod
