@@ -27,7 +27,8 @@
         "REDIS_URL": "redis://localhost:6379/0",
         "WORK_ROLE": "app",
         "PROD_ENV": "false",
-        "VAR_ROOT": "./examples"
+        "VAR_ROOT": "./examples",
+        "NO_STATIC_RENDERING": "true"
       },
       "cwd": "${workspaceFolder}",
       "args": ["run", "-p", "50002", "--no-debugger"],
@@ -40,7 +41,8 @@
         "REDIS_URL": "redis://localhost:6379/0",
         "WORK_ROLE": "worker",
         "PROD_ENV": "false",
-        "VAR_ROOT": "./examples"
+        "VAR_ROOT": "./examples",
+        "NO_STATIC_RENDERING": "true"
       },
       "command": "watchmedo auto-restart -d ./ -p '*.py' --  celery -A app:celery_app worker --loglevel=DEBUG -c 1 --pool threads",
       "request": "launch",

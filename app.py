@@ -92,7 +92,7 @@ app = Dash(
     ],
 )
 server = app.server
-if os.getenv("WORK_ROLE") == "worker":
+if os.getenv("WORK_ROLE") == "worker" and os.getenv("NO_STATIC_RENDERING") != "true":
     ensure_vdisplay(force=True)
 
 
@@ -436,6 +436,7 @@ app.layout = html.Div(
                                 id=COLOR_MAP_DROPDOWN_ID.get_identifier(),
                                 options=[{"label": "coolwarm", "value": "coolwarm"}],
                                 value=DEFAULT_OPTIONS[str(COLOR_MAP_DROPDOWN_ID)],
+                                style={},  # keep it
                             ),
                         ],
                         style={
@@ -627,12 +628,13 @@ app.layout = html.Div(
         RENDER_MODE_DROPDOWN_ID.get_output("disabled"),
         COLOR_MAP_DROPDOWN_ID.get_output("options"),
         PLAY_INTERVAL_ID.get_output("interval"),
+        COLOR_MAP_DROPDOWN_ID.get_output("style"),
     ],
     [
         URL_LOCATION_ID.get_input("search"),
         State("viewport", "data"),
     ],
-    background=True,
+    # background=True,
     prevent_initial_call=True,
 )
 def viewer(search, viewport):
@@ -667,6 +669,9 @@ def viewer(search, viewport):
         array_names = get_scalar_names(grid)
         if array_names:
             color_array_name = array_names[0]
+    colormap_style = Patch()
+    if not array_names:
+        colormap_style["display"] = "none"
     set_option(options, COLOR_ARRAY_NAME_DROPDOWN_ID, color_array_name)
 
     if grid.actual_memory_size > 1024 * 50:  # 50MB
@@ -797,6 +802,7 @@ def viewer(search, viewport):
         False,
         colormaps,
         interval,
+        colormap_style,
     )
 
 

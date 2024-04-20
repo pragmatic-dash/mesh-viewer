@@ -122,23 +122,29 @@ class MeshRepresentation:
                 },
             )
         mesh_state = to_mesh_state(grid, color_array_name)
-
+        showScalarBar = (
+            self.show_scalar_bar
+            and color_array_name is not None
+            and color_data_range is not None
+        )
+        mapper = {
+            "scalarMode": 3,
+            "scalarVisibility": True,
+            "interpolateScalarsBeforeMapping": True,
+        }
+        if color_array_name:
+            mapper["colorByArrayName"] = color_array_name
         return View(
             GeometryRepresentation(
                 [
                     Mesh(state=mesh_state),
                 ],
-                showScalarBar=self.show_scalar_bar and color_array_name is not None,
-                scalarBarTitle=color_array_name,
-                mapper={
-                    "scalarMode": 3,
-                    "colorByArrayName": color_array_name,
-                    "scalarVisibility": True,
-                    "interpolateScalarsBeforeMapping": True,
-                },
+                showScalarBar=showScalarBar,
+                scalarBarTitle=(color_array_name if showScalarBar else None),
+                mapper=mapper,
                 actor={},
-                colorMapPreset=color_map,
-                colorDataRange=color_data_range,
+                colorMapPreset=(color_map if showScalarBar else None),
+                colorDataRange=(color_data_range if showScalarBar else None),
                 property={
                     "edgeVisibility": False,
                     "pointSize": self.point_size,
