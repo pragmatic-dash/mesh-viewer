@@ -6,7 +6,6 @@ RUN apt-get update --fix-missing && apt-get install gcc python3-dev libgl1-mesa-
 RUN mkdir -p /app
 ADD requirements.txt /app/requirements.txt
 
-# Install dependencies
 RUN pip3 install -r /app/requirements.txt -i https://repo.mlops.dp.tech/repository/pypi-group/simple
 
 ADD ./ /app

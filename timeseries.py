@@ -1,6 +1,5 @@
 import json
 import sys
-from typing import List
 from pathlib import Path
 from functools import cached_property
 

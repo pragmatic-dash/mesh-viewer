@@ -25,11 +25,13 @@ PLAY_BTN_ID = DashIDGenerator(type="button", name="play")
 
 ARTIFACT_STORE_ID = DashIDGenerator(type="store", name="artifact")
 OPTIONS_STORE_ID = DashIDGenerator(type="store", name="options")
-ACTION_STORE_ID = DashIDWrapper("action")
+ACTION_STORE_ID = DashIDWrapper(
+    "action"
+)  # Use DashIDWrapper to avoid Dash's bug with `runnig` attribute
 CHECKPOINT_STORE_ID = DashIDGenerator(type="store", name="checkpoint")
 
 
-PLAY_INTERVAL_ID = DashIDWrapper("play")
+PLAY_INTERVAL_ID = DashIDGenerator(type="interval", name="play")
 TIME_SLIDER_ID = DashIDGenerator(type="slider", name="time")
 ROTATE_X_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-x")
 ROTATE_Y_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-y")
