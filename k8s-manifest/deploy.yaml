@@ -6,7 +6,7 @@ metadata:
   labels:
     app: mesh-viewer
 spec:
-  replicas: 1
+  replicas: 5
   selector:
     matchLabels:
       app: mesh-viewer
