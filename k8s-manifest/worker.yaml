@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mesh-viewer-worker
+  namespace: project-launching
+  labels:
+    app: mesh-viewer-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mesh-viewer-worker
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: mesh-viewer-worker
+    spec:
+      containers:
+        - name: worker
+          env:
+            - name: PROD_ENV
+              value: "true"
+            - name: WORK_ROLE
+              value: worker
+            - name: LAUNCHING_APPLICATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mesh-viewer-crediential
+                  key: launching-application-token
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mesh-viewer-crediential
+                  key: redis-url
+            - name: VAR_ROOT
+              value: "/shared_data"
+          image: registry.dp.tech/mlops/mesh-viewer:latest
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - |
+              celery -A app:celery_app worker --loglevel=DEBUG --concurrency=1 --pool threads
+          resources:
+            requests:
+              cpu: 2
+              memory: 200M
+            limits:
+              cpu: 10
+              memory: 8Gi
+          volumeMounts:
+            - name: shared-data-volume
+              mountPath: /shared_data
+      restartPolicy: Always
+      volumes:
+        - name: shared-data-volume
+          persistentVolumeClaim:
+            claimName: jfs-prod

@@ -1,4 +1,6 @@
-dash[compress]==2.16.1
+-i https://repo.mlops.dp.tech/repository/pypi-group/simple
+
+dash[compress,diskcache,celery]==2.16.1
 dash-vtk==0.0.9.post1+scalar.bar
 dash-core-components==2.0.0
 gunicorn==21.2.0
@@ -13,4 +15,5 @@ dash-id-utils==0.0.2
 sh==2.0.6
 dash_breakpoints==0.1.0
 dash-fullscreen==0.0.2
-
+watchdog==3.0.0
+redis[hiredis]

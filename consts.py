@@ -1,6 +1,6 @@
 from enum import Enum
 
-from dash_id_utils import DashIDGenerator
+from dash_id_utils import DashIDGenerator, DashIDWrapper
 
 
 class RepresentationType(Enum):
@@ -17,16 +17,19 @@ class RenderMode(Enum):
 VTK_VIEW_ID = DashIDGenerator(type="view", name="vtk-view")
 VTK_CONTAINER_ID = DashIDGenerator(type="view", name="vtk-container")
 MAIN_CONTAINER_ID = DashIDGenerator(type="view", name="main")
-
+MAIN_LOADING_ID = DashIDGenerator(type="loading", name="main")
+RERENDER_LOADING_ID = DashIDGenerator(type="loading", name="rerender")
 
 URL_LOCATION_ID = DashIDGenerator(type="location", name="url")
 PLAY_BTN_ID = DashIDGenerator(type="button", name="play")
 
 ARTIFACT_STORE_ID = DashIDGenerator(type="store", name="artifact")
 OPTIONS_STORE_ID = DashIDGenerator(type="store", name="options")
+ACTION_STORE_ID = DashIDWrapper("action")
+CHECKPOINT_STORE_ID = DashIDGenerator(type="store", name="checkpoint")
 
 
-PLAY_INTERVAL_ID = DashIDGenerator(type="interval", name="play")
+PLAY_INTERVAL_ID = DashIDWrapper("play")
 TIME_SLIDER_ID = DashIDGenerator(type="slider", name="time")
 ROTATE_X_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-x")
 ROTATE_Y_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-y")

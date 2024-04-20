@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mesh-viewer
+  namespace: project-launching
+  labels:
+    app: mesh-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mesh-viewer
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: mesh-viewer
+    spec:
+      containers:
+        - name: app
+          image: registry.dp.tech/mlops/mesh-viewer:latest
+          env:
+          - name: PROD_ENV
+            value: "true"
+          - name: REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: mesh-viewer-credentials
+                key: redis-url
+          - name: WORK_ROLE
+            value: app
+          - name: VAR_ROOT
+            value: "/shared_data"
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 1
+              memory: 2Gi
+            limits:
+              cpu: 4
+              memory: 4Gi
+      restartPolicy: Always

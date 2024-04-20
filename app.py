@@ -1,11 +1,14 @@
+import os
 from copy import deepcopy
 from urllib.parse import parse_qs
 from pathlib import Path
 
+from celery import Celery
 from matplotlib import colormaps
 import pyvista as pv
 from dash import html, dcc, no_update, ctx
 from dash import Dash, Patch, Input, Output, State
+from dash import CeleryManager
 from dash.exceptions import PreventUpdate
 import dash_daq as daq
 import dash_bootstrap_components as dbc
@@ -34,6 +37,10 @@ from consts import (
     OPTIONS_STORE_ID,
     ROTATE_X_SLIDER_ID,
     ROTATE_Y_SLIDER_ID,
+    MAIN_LOADING_ID,
+    RERENDER_LOADING_ID,
+    ACTION_STORE_ID,
+    CHECKPOINT_STORE_ID,
 )
 from vdisplay import ensure_vdisplay
 from timeseries import TimeSeriesMesh
@@ -52,7 +59,7 @@ for cmap in colormaps:
         pass
 
 
-ROOT_PATH = Path(__file__).parent / "examples"
+ROOT_PATH = Path(os.getenv("VAR_ROOT", Path(__file__).parent / "examples"))
 
 
 def get_option(options, name):
@@ -67,18 +74,25 @@ def exists_option(options, name):
     return str(name) in options
 
 
+celery_app = Celery(
+    __name__, broker=os.environ["REDIS_URL"], backend=os.environ["REDIS_URL"]
+)
+background_callback_manager = CeleryManager(celery_app)
 app = Dash(
     __name__,
     title="Mesh Viewer",
     compress=True,
     serve_locally=True,
+    suppress_callback_exceptions=os.getenv("PROD_ENV") == "true",
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
+    background_callback_manager=background_callback_manager,
     meta_tags=[
         {"name": "viewport", "content": "width=device-width, initial-scale=1.0"}
     ],
 )
 server = app.server
-ensure_vdisplay(force=True)
+if os.getenv("WORK_ROLE") == "worker":
+    ensure_vdisplay(force=True)
 
 
 @app.callback(
@@ -95,10 +109,13 @@ def save_viewport(width: str, height: str):
 
 @app.callback(
     [
+        RERENDER_LOADING_ID.get_output("children"),
         OPTIONS_STORE_ID.get_output("data"),
         VTK_CONTAINER_ID.get_output("children"),
         COLOR_MAP_DROPDOWN_ID.get_output("options"),
         COLOR_MAP_DROPDOWN_ID.get_output("value"),
+        PLAY_INTERVAL_ID.get_output("interval"),
+        PLAY_INTERVAL_ID.get_output("disabled"),
     ],
     [
         RENDER_MODE_DROPDOWN_ID.get_input("value"),
@@ -115,7 +132,16 @@ def save_viewport(width: str, height: str):
         ROTATE_Y_SLIDER_ID.get_input("value"),
         State("viewport", "data"),
         OPTIONS_STORE_ID.get_state("data"),
+        PLAY_INTERVAL_ID.get_state("disabled"),
     ],
+    running=[
+        (
+            ACTION_STORE_ID.get_output("data"),
+            "disable",
+            "ignore",
+        ),
+    ],
+    background=True,
     prevent_initial_call=True,
 )
 def rerender(
@@ -133,6 +159,7 @@ def rerender(
     rotate_y,
     viewport,
     saved_options,
+    interval_disabled,
 ):
     options = Patch()
     artifact = get_option(saved_options, ARTIFACT_STORE_ID)
@@ -153,8 +180,10 @@ def rerender(
         )
         color_map = "coolwarm"
         set_option(options, COLOR_MAP_DROPDOWN_ID, color_map)
+        interval = 1000 if render_mode == RenderMode.Interactive.value else 1000
     else:
         colormaps = no_update
+        interval = no_update
 
     if not artifact:
         raise PreventUpdate("No artifact specified")
@@ -162,7 +191,6 @@ def rerender(
     filepath = ROOT_PATH / artifact
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
-
     color_data_range = None
     if artifact.endswith(".vtm.series"):
         time_series = TimeSeriesMesh(filepath)
@@ -189,11 +217,33 @@ def rerender(
         representation_type=representation_type,
     )
     return (
+        None,
         options,
         representation.get_view(color_data_range=color_data_range, viewport=viewport),
         colormaps,
         color_map,
+        interval,
+        interval_disabled,
     )
+
+
+@app.callback(
+    [
+        PLAY_INTERVAL_ID.get_output("disabled"),
+        CHECKPOINT_STORE_ID.get_output("data"),
+    ],
+    [
+        ACTION_STORE_ID.get_input("data"),
+        CHECKPOINT_STORE_ID.get_state("data"),
+        PLAY_INTERVAL_ID.get_state("disabled"),
+    ],
+    prevent_initial_call=True,
+)
+def hold_play(action, saved, interval_disabled):
+    if action == "disable":
+        return True, interval_disabled
+    else:
+        return saved, no_update
 
 
 @app.callback(
@@ -300,6 +350,7 @@ DEFAULT_OPTIONS = {
     str(BACKGROUND_COLOR_PICKER_ID): dict(hex="#000000"),
     str(ROTATE_X_SLIDER_ID): 0,
     str(ROTATE_Y_SLIDER_ID): 0,
+    str(TIME_SLIDER_ID): 0,
 }
 app.layout = html.Div(
     [
@@ -307,6 +358,8 @@ app.layout = html.Div(
             id="breakpoints",
         ),
         dcc.Store(id="viewport", storage_type="memory"),
+        dcc.Store(id=ACTION_STORE_ID.get_identifier(), storage_type="memory"),
+        dcc.Store(id=CHECKPOINT_STORE_ID.get_identifier(), storage_type="memory"),
         dcc.Location(id=URL_LOCATION_ID.get_identifier(), refresh=False),
         dcc.Store(
             id=OPTIONS_STORE_ID.get_identifier(),
@@ -324,7 +377,35 @@ app.layout = html.Div(
             id="split",
             mainStyle={"width": "100%", "height": "100%"},
             mainChildren=html.Div(
-                id=MAIN_CONTAINER_ID.get_identifier(),
+                [
+                    dcc.Loading(
+                        type="default",
+                        fullscreen=True,
+                        children=html.Div(
+                            id=MAIN_LOADING_ID.get_identifier(),
+                            style={"height": "100%", "width": "100%", "zIndex": 1000},
+                        ),
+                        style={"height": "100%", "width": "100%"},
+                    ),
+                    dcc.Loading(
+                        type="dot",
+                        fullscreen=False,
+                        children=html.Div(
+                            style={"height": "100%", "width": "100%", "zIndex": 1000},
+                            id=RERENDER_LOADING_ID.get_identifier(),
+                        ),
+                        style={"height": "100%", "width": "100%"},
+                    ),
+                    html.Div(
+                        id=MAIN_CONTAINER_ID.get_identifier(),
+                        style={
+                            "height": "100%",
+                            "width": "100%",
+                            "margin": 0,
+                            "padding": 0,
+                        },
+                    ),
+                ],
                 style={"height": "100%", "width": "100%", "margin": 0, "padding": 0},
             ),
             sidebarTitle="Options",
@@ -344,7 +425,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -358,7 +439,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -374,7 +455,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -393,7 +474,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -411,7 +492,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -429,7 +510,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -447,7 +528,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -460,7 +541,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -478,7 +559,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -496,7 +577,7 @@ app.layout = html.Div(
                         ],
                         style={
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                     html.Div(
@@ -511,13 +592,13 @@ app.layout = html.Div(
                         style={
                             "padding": "1rem 0px",
                             "display": "flex",
-                            "flex-direction": "column",
+                            "flexDirection": "column",
                         },
                     ),
                 ],
                 style={
                     "display": "flex",
-                    "flex-direction": "column",
+                    "flexDirection": "column",
                     "gap": "1rem",
                     "padding": "1rem",
                     "paddingTop": "1.5rem",
@@ -536,6 +617,7 @@ app.layout = html.Div(
 
 @app.callback(
     [
+        MAIN_LOADING_ID.get_output("children"),
         OPTIONS_STORE_ID.get_output("data"),
         MAIN_CONTAINER_ID.get_output("children"),
         COLOR_ARRAY_NAME_DROPDOWN_ID.get_output("options"),
@@ -543,11 +625,13 @@ app.layout = html.Div(
         RENDER_MODE_DROPDOWN_ID.get_output("value"),
         RENDER_MODE_DROPDOWN_ID.get_output("disabled"),
         COLOR_MAP_DROPDOWN_ID.get_output("options"),
+        PLAY_INTERVAL_ID.get_output("interval"),
     ],
     [
         URL_LOCATION_ID.get_input("search"),
         State("viewport", "data"),
     ],
+    background=True,
     prevent_initial_call=True,
 )
 def viewer(search, viewport):
@@ -584,9 +668,12 @@ def viewer(search, viewport):
             color_array_name = array_names[0]
     set_option(options, COLOR_ARRAY_NAME_DROPDOWN_ID, color_array_name)
 
-    # TODO dynamic change render mode based on file size
-    render_mode = RenderMode.Static.value
+    if grid.actual_memory_size > 1024 * 50:  # 50MB
+        render_mode = RenderMode.Static.value
+    else:
+        render_mode = RenderMode.Interactive.value
 
+    interval = 1000 if render_mode == RenderMode.Interactive.value else 1000
     colormaps = (
         AVIALABLE_CMAPS_STATIC
         if render_mode == RenderMode.Static.value
@@ -639,7 +726,7 @@ def viewer(search, viewport):
                                     i: str(time_series.info["files"][i]["time"])
                                     for i in range(time_series.n_slices)
                                 },
-                                value=options.get(TIME_SLIDER_ID.get_identifier(), 0),
+                                value=get_option(DEFAULT_OPTIONS, TIME_SLIDER_ID),
                                 max=time_series.n_slices - 1,
                             ),
                             style={
@@ -700,6 +787,7 @@ def viewer(search, viewport):
         )
 
     return (
+        None,
         options,
         main_view,
         [{"label": name, "value": name} for name in array_names],
@@ -707,6 +795,7 @@ def viewer(search, viewport):
         render_mode,
         False,
         colormaps,
+        interval,
     )
 
 

@@ -8,6 +8,12 @@
       "type": "node-terminal"
     },
     {
+      "name": "Redis",
+      "request": "launch",
+      "command": "redis-server --port 6379",
+      "type": "node-terminal"
+    },
+    {
       "name": "Web",
       "type": "debugpy",
       "request": "launch",
@@ -17,12 +23,28 @@
         "FLASK_DEBUG": "true",
         "DASH_DEBUG": "true",
         "DASH_HOT_RELOAD": "true",
-        "DASH_UI": "true"
+        "DASH_UI": "true",
+        "REDIS_URL": "redis://localhost:6379/0",
+        "WORK_ROLE": "app",
+        "PROD_ENV": "false",
+        "VAR_ROOT": "./examples"
       },
       "cwd": "${workspaceFolder}",
       "args": ["run", "-p", "50002", "--no-debugger"],
       "jinja": true,
       "justMyCode": true
+    },
+    {
+      "name": "Worker",
+      "env": {
+        "REDIS_URL": "redis://localhost:6379/0",
+        "WORK_ROLE": "worker",
+        "PROD_ENV": "false",
+        "VAR_ROOT": "./examples"
+      },
+      "command": "watchmedo auto-restart -d ./ -p '*.py' --  celery -A app:celery_app worker --loglevel=DEBUG -c 1 --pool threads",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }

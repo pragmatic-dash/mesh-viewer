@@ -2,3 +2,7 @@
     bottom: unset !important;
     top: 5px !important;
 }
+
+html, body {
+    height: 100%;
+}

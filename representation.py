@@ -117,8 +117,8 @@ class MeshRepresentation:
                     "height": "100%",
                     "margin": 0,
                     "padding": 0,
-                    "text-align": "center",
-                    "background-color": self.background_color,
+                    "textAlign": "center",
+                    "backgroundColor": self.background_color,
                 },
             )
         mesh_state = to_mesh_state(grid, color_array_name)
