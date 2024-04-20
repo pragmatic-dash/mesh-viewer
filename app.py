@@ -42,6 +42,7 @@ from consts import (
     ACTION_STORE_ID,
     CHECKPOINT_STORE_ID,
 )
+from utils import must_safe_join
 from vdisplay import ensure_vdisplay
 from timeseries import TimeSeriesMesh
 from representation import MeshRepresentation, get_scalar_names
@@ -188,7 +189,7 @@ def rerender(
     if not artifact:
         raise PreventUpdate("No artifact specified")
 
-    filepath = ROOT_PATH / artifact
+    filepath = must_safe_join(ROOT_PATH, artifact)
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
     color_data_range = None
@@ -270,7 +271,7 @@ def play_time_series(n_clicks, n_steps, interval_disabled, saved_options):
     if not artifact:
         raise PreventUpdate("No artifact specified")
 
-    filepath = ROOT_PATH / artifact
+    filepath = must_safe_join(ROOT_PATH, artifact)
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
 
@@ -641,7 +642,7 @@ def viewer(search, viewport):
         raise PreventUpdate("No artifact specified")
 
     artifact = artifacts[0]
-    filepath = ROOT_PATH / artifact
+    filepath = must_safe_join(ROOT_PATH, artifact)
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
 
