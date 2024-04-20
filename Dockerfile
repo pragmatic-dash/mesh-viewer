@@ -10,4 +10,5 @@ ADD requirements.txt /app/requirements.txt
 RUN pip3 install -r /app/requirements.txt -i https://repo.mlops.dp.tech/repository/pypi-group/simple
 
 ADD ./ /app
+WORKDIR /app
 ENTRYPOINT [ "gunicorn", "--bind", "0.0.0.0:50002", "-w", "4", "-t", "300", "--preload", "--chdir", "/app", "app:server" ]
