@@ -36,6 +36,8 @@ PLAY_INTERVAL_ID = DashIDGenerator(type="interval", name="play")
 TIME_SLIDER_ID = DashIDGenerator(type="slider", name="time")
 ROTATE_X_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-x")
 ROTATE_Y_SLIDER_ID = DashIDGenerator(type="slider", name="rotate-y")
+THRESHOLD_RANGE_SLIDER_LOWER_ID = DashIDGenerator(type="range-slider", name="threshold")
+THRESHOLD_INVERT_CHECKBOX_ID = DashIDGenerator(type="checkbox", name="threshold-invert")
 
 RENDER_MODE_DROPDOWN_ID = DashIDGenerator(type="dropdown", name="render-mode")
 COLOR_MAP_DROPDOWN_ID = DashIDGenerator(type="dropdown", name="color-map")

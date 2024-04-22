@@ -42,6 +42,7 @@ class MeshRepresentation:
         background_color="#000000",
         render_mode=RenderMode.Interactive.value,
         representation_type=RepresentationType.Surface.value,
+        threshold=None,
     ):
         self.grid = grid
         self.color_array_name = color_array_name
@@ -55,6 +56,7 @@ class MeshRepresentation:
         self.line_width = line_width
         self.show_scalar_bar = show_scalar_bar
         self.representation_type = representation_type
+        self.threshold = threshold
 
     def get_view(self, color_data_range=None, viewport=None):
         color_array_name = self.color_array_name
@@ -69,6 +71,8 @@ class MeshRepresentation:
             grid.rotate_x(self.rotate_x, inplace=True)
         if self.rotate_y:
             grid.rotate_y(self.rotate_y, inplace=True)
+        if self.threshold:
+            grid = grid.threshold(self.threshold, self.color_array_name, invert=False)
 
         if self.render_mode == "static":
             plotter = pv.Plotter(off_screen=True)

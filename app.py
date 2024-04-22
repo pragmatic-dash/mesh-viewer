@@ -38,6 +38,7 @@ from consts import (
     OPTIONS_STORE_ID,
     ROTATE_X_SLIDER_ID,
     ROTATE_Y_SLIDER_ID,
+    THRESHOLD_RANGE_SLIDER_LOWER_ID,
     MAIN_LOADING_ID,
     RERENDER_LOADING_ID,
     ACTION_STORE_ID,
@@ -118,6 +119,10 @@ def save_viewport(width: str, height: str):
         COLOR_MAP_DROPDOWN_ID.get_output("value"),
         PLAY_INTERVAL_ID.get_output("interval"),
         PLAY_INTERVAL_ID.get_output("disabled"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("min"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("max"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("step"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("value"),
     ],
     [
         RENDER_MODE_DROPDOWN_ID.get_input("value"),
@@ -132,6 +137,7 @@ def save_viewport(width: str, height: str):
         BACKGROUND_COLOR_PICKER_ID.get_input("value"),
         ROTATE_X_SLIDER_ID.get_input("value"),
         ROTATE_Y_SLIDER_ID.get_input("value"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_input("value"),
         State("viewport", "data"),
         OPTIONS_STORE_ID.get_state("data"),
         PLAY_INTERVAL_ID.get_state("disabled"),
@@ -159,6 +165,7 @@ def rerender(
     background_color,
     rotate_x,
     rotate_y,
+    threshold,
     viewport,
     saved_options,
     interval_disabled,
@@ -204,6 +211,23 @@ def rerender(
             color_data_range = ranges.get(color_array_name)
     else:
         grid = pv.read(filepath)
+        if color_array_name:
+            color_data_range = grid.get_data_range(color_array_name)
+
+    if (
+        ctx.triggered_id == COLOR_ARRAY_NAME_DROPDOWN_ID.get_identifier()
+        and color_data_range
+    ):
+        threshold_min = color_data_range[0]
+        threshold_max = color_data_range[1]
+        threshold_step = (threshold_max - threshold_min) / 100
+        threshold_value = [threshold_min, threshold_max]
+    else:
+        threshold_min = no_update
+        threshold_max = no_update
+        threshold_step = no_update
+        threshold_value = no_update
+
     representation = MeshRepresentation(
         grid,
         color_array_name=color_array_name,
@@ -213,6 +237,7 @@ def rerender(
         rotate_x=rotate_x,
         rotate_y=rotate_y,
         point_size=point_size,
+        threshold=threshold,
         background_color=background_color["hex"],
         line_width=line_size,
         show_scalar_bar=show_scalar_bar,
@@ -226,6 +251,10 @@ def rerender(
         color_map,
         interval,
         interval_disabled,
+        threshold_min,
+        threshold_max,
+        threshold_step,
+        threshold_value,
     )
 
 
@@ -351,6 +380,7 @@ DEFAULT_OPTIONS = {
     str(SHOW_SCALAR_BAR_ID): True,
     str(BACKGROUND_COLOR_PICKER_ID): dict(hex="#000000"),
     str(ROTATE_X_SLIDER_ID): 0,
+    str(THRESHOLD_RANGE_SLIDER_LOWER_ID): None,
     str(ROTATE_Y_SLIDER_ID): 0,
     str(TIME_SLIDER_ID): 0,
 }
@@ -585,6 +615,23 @@ app.layout = html.Div(
                     ),
                     html.Div(
                         [
+                            html.Caption("Threshold Range"),
+                            dcc.RangeSlider(
+                                min=0,
+                                max=1,
+                                step=0.01,
+                                value=[0, 1],
+                                id=THRESHOLD_RANGE_SLIDER_LOWER_ID.get_identifier(),
+                                tooltip={"placement": "bottom", "always_visible": True},
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                        },
+                    ),
+                    html.Div(
+                        [
                             html.Caption("Background"),
                             daq.ColorPicker(
                                 id=BACKGROUND_COLOR_PICKER_ID.get_identifier(),
@@ -630,12 +677,16 @@ app.layout = html.Div(
         COLOR_MAP_DROPDOWN_ID.get_output("options"),
         PLAY_INTERVAL_ID.get_output("interval"),
         COLOR_MAP_VIEW_ID.get_output("style"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("min"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("max"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("step"),
+        THRESHOLD_RANGE_SLIDER_LOWER_ID.get_output("value"),
     ],
     [
         URL_LOCATION_ID.get_input("search"),
         State("viewport", "data"),
     ],
-    # background=True,
+    background=True,
     prevent_initial_call=True,
 )
 def viewer(search, viewport):
@@ -670,6 +721,7 @@ def viewer(search, viewport):
         array_names = get_scalar_names(grid)
         if array_names:
             color_array_name = array_names[0]
+            color_data_range = grid.get_data_range(color_array_name)
     colormap_view_style = Patch()
     if not array_names:
         colormap_view_style["display"] = "none"
@@ -696,6 +748,17 @@ def viewer(search, viewport):
         color_array_name=color_array_name,
         background_color=options[str(BACKGROUND_COLOR_PICKER_ID)]["hex"],
     )
+    if color_data_range:
+        threshold_min = color_data_range[0]
+        threshold_max = color_data_range[1]
+        threshold_step = (threshold_max - threshold_min) / 100
+        threshold_value = [threshold_min, threshold_max]
+        set_option(options, THRESHOLD_RANGE_SLIDER_LOWER_ID, threshold_value)
+    else:
+        threshold_min = no_update
+        threshold_max = no_update
+        threshold_step = no_update
+        threshold_value = no_update
     vtk_view = representation.get_view(
         color_data_range=color_data_range, viewport=viewport
     )
@@ -806,6 +869,10 @@ def viewer(search, viewport):
         colormaps,
         interval,
         colormap_view_style,
+        threshold_min,
+        threshold_max,
+        threshold_step,
+        threshold_value,
     )
 
 
