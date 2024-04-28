@@ -13,10 +13,6 @@ from consts import RepresentationType, RenderMode
 from consts import VTK_VIEW_ID
 
 
-def get_scalar_names(grid):
-    return grid.point_data.keys() + grid.cell_data.keys()
-
-
 def numpy_to_base64(image_array):
     image = Image.fromarray(image_array)
     buffer = BytesIO()

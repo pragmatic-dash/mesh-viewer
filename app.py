@@ -44,10 +44,10 @@ from consts import (
     ACTION_STORE_ID,
     CHECKPOINT_STORE_ID,
 )
-from utils import must_safe_join, merge_vtk_datasets
+from utils import must_safe_join, merge_vtk_datasets, get_scalar_names
 from vdisplay import ensure_vdisplay
 from timeseries import TimeSeriesMesh
-from representation import MeshRepresentation, get_scalar_names
+from representation import MeshRepresentation
 
 AVIALABLE_CMAPS_INTERACTIVE = [
     i for i in preset_as_options if i["label"] not in ("KAAMS",)
@@ -201,16 +201,17 @@ def rerender(
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
     color_data_range = None
-    if artifact.endswith("..series"):
+    if artifact.endswith(".series"):
         time_series = TimeSeriesMesh(filepath)
         if n_steps >= time_series.n_slices:
             raise PreventUpdate("No more slices")
-        grid = time_series.read(n_steps)
+        grid = time_series.read(n_steps, scalars=color_array_name)
         if color_array_name:
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
-        grid = merge_vtk_datasets(pv.read(filepath))
+        blocks = pv.read(filepath)
+        grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
         if color_array_name:
             color_data_range = grid.get_data_range(color_array_name)
 
@@ -305,7 +306,7 @@ def play_time_series(n_clicks, n_steps, interval_disabled, saved_options):
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
 
-    if not artifact.endswith("..series"):
+    if not artifact.endswith(".series"):
         raise PreventUpdate("Not a time series")
 
     time_series = TimeSeriesMesh(filepath)
@@ -708,19 +709,25 @@ def viewer(search, viewport):
     color_data_range = None
     color_array_name = None
     array_names = []
-    if artifact.endswith("..series"):
+    if artifact.endswith(".series"):
         time_series = TimeSeriesMesh(filepath)
-        grid = time_series.read(0)
-        array_names = get_scalar_names(grid)
+        blocks = time_series.read_blocks(0)
+        array_names = get_scalar_names(blocks)
+        grid, has_missing = merge_vtk_datasets(blocks)
         if array_names:
             color_array_name = array_names[0]
+            if has_missing:
+                grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
-        grid = merge_vtk_datasets(pv.read(filepath))
-        array_names = get_scalar_names(grid)
+        blocks = pv.read(filepath)
+        array_names = get_scalar_names(blocks)
+        grid, has_missing = merge_vtk_datasets(blocks)
         if array_names:
             color_array_name = array_names[0]
+            if has_missing:
+                grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
             color_data_range = grid.get_data_range(color_array_name)
     colormap_view_style = Patch()
     if not array_names:

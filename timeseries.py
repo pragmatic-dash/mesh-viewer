@@ -24,15 +24,18 @@ class TimeSeriesMesh:
     def n_slices(self):
         return len(self.info["files"])
 
-    def read(self, slice: int = 0):
+    def read_blocks(self, slice: int = 0):
         info = self.info
         if len(info["files"]) <= slice:
             raise ValueError(f"Slice {slice} does not exist")
 
         filename = info["files"][slice]["name"]
         slice_file = self.root / filename
-        grid = pv.read(slice_file)
-        return merge_vtk_datasets(grid)
+        return pv.read(slice_file)
+
+    def read(self, slice: int = 0, scalars=None):
+        blocks = self.read_blocks(slice)
+        return merge_vtk_datasets(blocks, scalars=scalars)
 
     def get_ranges(self):
         range_cache_filepath = self.root / ".ranges.json"
@@ -53,7 +56,7 @@ class TimeSeriesMesh:
     def compute_ranges(self):
         ranges = {}
         for i in range(self.n_slices):
-            grid = self.read(i)
+            grid, _ = self.read(i)
             array_names = grid.point_data.keys() + grid.cell_data.keys()
             for name in array_names:
                 min_val, max_val = ranges.get(name) or [

@@ -24,10 +24,37 @@ def must_safe_join(
         raise Exception("Malicious path detected")
 
 
-def merge_vtk_datasets(datasets):
+def get_scalar_names(grid):
+    if isinstance(grid, pv.MultiBlock):
+        names = []
+        for block in grid:
+            names.extend(get_scalar_names(block))
+        return list(sorted(set(names)))
+    return list(sorted(set(grid.point_data.keys() + grid.cell_data.keys())))
+
+
+def merge_vtk_datasets(datasets, scalars=None):
+    if scalars is None:
+        scalars = get_scalar_names(datasets)
+    elif not isinstance(scalars, list):
+        scalars = [scalars]
+    return _merge_vtk_datasets(datasets, scalars=scalars)
+
+
+def _merge_vtk_datasets(datasets, scalars):
     if isinstance(datasets, pv.MultiBlock):
-        return pv.merge(
-            [merge_vtk_datasets(datasets[name]) for name in datasets.keys()]
-        )
-    else:
-        return datasets
+        has_missing = False
+        blocks = []
+        for name in datasets.keys():
+            block, _has_missing = _merge_vtk_datasets(datasets[name], scalars=scalars)
+            has_missing = has_missing or _has_missing
+            if block:
+                blocks.append(block)
+        if not blocks:
+            return None, has_missing
+        return pv.merge(blocks), has_missing
+    elif len(scalars) == 0:
+        return datasets, False
+    elif set(scalars) <= set(datasets.array_names):
+        return datasets, False
+    return None, True
