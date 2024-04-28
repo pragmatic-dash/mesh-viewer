@@ -219,8 +219,8 @@ def rerender(
         ctx.triggered_id == COLOR_ARRAY_NAME_DROPDOWN_ID.get_identifier()
         and color_data_range
     ):
-        threshold_min = color_data_range[0] - 1
-        threshold_max = color_data_range[1] + 1
+        threshold_min = color_data_range[0]
+        threshold_max = color_data_range[1]
         threshold_step = (threshold_max - threshold_min) / 100
         threshold_value = [threshold_min, threshold_max]
     else:
@@ -756,8 +756,8 @@ def viewer(search, viewport):
         background_color=options[str(BACKGROUND_COLOR_PICKER_ID)]["hex"],
     )
     if color_data_range:
-        threshold_min = color_data_range[0] - 1
-        threshold_max = color_data_range[1] + 1
+        threshold_min = color_data_range[0]
+        threshold_max = color_data_range[1]
         threshold_step = (threshold_max - threshold_min) / 100
         threshold_value = [threshold_min, threshold_max]
         set_option(options, THRESHOLD_RANGE_SLIDER_LOWER_ID, threshold_value)

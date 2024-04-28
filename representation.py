@@ -68,7 +68,12 @@ class MeshRepresentation:
         if self.rotate_y:
             grid.rotate_y(self.rotate_y, inplace=True)
         if self.threshold:
-            grid = grid.threshold(self.threshold, self.color_array_name, invert=False)
+            grid = grid.threshold(
+                self.threshold[0], self.color_array_name, invert=False, method="upper"
+            )
+            grid = grid.threshold(
+                self.threshold[1], self.color_array_name, invert=False, method="lower"
+            )
 
         if self.render_mode == "static":
             plotter = pv.Plotter(off_screen=True)
