@@ -201,7 +201,7 @@ def rerender(
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
     color_data_range = None
-    if artifact.endswith(".vtm.series"):
+    if artifact.endswith("..series"):
         time_series = TimeSeriesMesh(filepath)
         if n_steps >= time_series.n_slices:
             raise PreventUpdate("No more slices")
@@ -305,7 +305,7 @@ def play_time_series(n_clicks, n_steps, interval_disabled, saved_options):
     if not filepath.exists():
         raise PreventUpdate("File does not exist")
 
-    if not artifact.endswith(".vtm.series"):
+    if not artifact.endswith("..series"):
         raise PreventUpdate("Not a time series")
 
     time_series = TimeSeriesMesh(filepath)
@@ -708,7 +708,7 @@ def viewer(search, viewport):
     color_data_range = None
     color_array_name = None
     array_names = []
-    if artifact.endswith(".vtm.series"):
+    if artifact.endswith("..series"):
         time_series = TimeSeriesMesh(filepath)
         grid = time_series.read(0)
         array_names = get_scalar_names(grid)
@@ -762,7 +762,7 @@ def viewer(search, viewport):
     vtk_view = representation.get_view(
         color_data_range=color_data_range, viewport=viewport
     )
-    if artifact.endswith(".vtm.series"):
+    if artifact.endswith("..series"):
         vtk_view.style["height"] = "calc(100vh - 2rem)"
         main_view = html.Div(
             [
