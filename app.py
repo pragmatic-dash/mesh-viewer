@@ -691,7 +691,7 @@ app.layout = html.Div(
     prevent_initial_call=True,
 )
 def viewer(search, viewport):
-    qs = parse_qs(search.lstrip("?"))
+    qs = parse_qs(search.lstrip("?")) if search else {}
     artifacts = qs.get("artifact")
     if not artifacts:
         raise PreventUpdate("No artifact specified")
