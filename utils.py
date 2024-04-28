@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from typing import Union
 
+import pyvista as pv
+
 
 def must_safe_join(
     base_dir: Union[str, Path], sub_path: Union[str, Path], *, allow_subpath_empty=False
@@ -20,3 +22,12 @@ def must_safe_join(
         return Path(final_path)
     else:
         raise Exception("Malicious path detected")
+
+
+def merge_vtk_datasets(datasets):
+    if isinstance(datasets, pv.MultiBlock):
+        return pv.merge(
+            [merge_vtk_datasets(datasets[name]) for name in datasets.keys()]
+        )
+    else:
+        return datasets

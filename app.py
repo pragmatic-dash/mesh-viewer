@@ -44,7 +44,7 @@ from consts import (
     ACTION_STORE_ID,
     CHECKPOINT_STORE_ID,
 )
-from utils import must_safe_join
+from utils import must_safe_join, merge_vtk_datasets
 from vdisplay import ensure_vdisplay
 from timeseries import TimeSeriesMesh
 from representation import MeshRepresentation, get_scalar_names
@@ -210,7 +210,7 @@ def rerender(
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
-        grid = pv.read(filepath)
+        grid = merge_vtk_datasets(pv.read(filepath))
         if color_array_name:
             color_data_range = grid.get_data_range(color_array_name)
 
@@ -717,7 +717,7 @@ def viewer(search, viewport):
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
-        grid = pv.read(filepath)
+        grid = merge_vtk_datasets(pv.read(filepath))
         array_names = get_scalar_names(grid)
         if array_names:
             color_array_name = array_names[0]

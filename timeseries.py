@@ -5,6 +5,8 @@ from functools import cached_property
 
 import pyvista as pv
 
+from utils import merge_vtk_datasets
+
 
 class TimeSeriesMesh:
 
@@ -12,15 +14,6 @@ class TimeSeriesMesh:
         self.filepath = Path(filepath)
         self.root = self.filepath.parent
         self.filename = filepath.name
-
-    @classmethod
-    def merge_datasets(cls, datasets):
-        if isinstance(datasets, pv.MultiBlock):
-            return pv.merge(
-                [cls.merge_datasets(datasets[name]) for name in datasets.keys()]
-            )
-        else:
-            return datasets
 
     @cached_property
     def info(self):
@@ -39,7 +32,7 @@ class TimeSeriesMesh:
         filename = info["files"][slice]["name"]
         slice_file = self.root / filename
         grid = pv.read(slice_file)
-        return self.merge_datasets(grid)
+        return merge_vtk_datasets(grid)
 
     def get_ranges(self):
         range_cache_filepath = self.root / ".ranges.json"
