@@ -45,7 +45,7 @@ from consts import (
     CHECKPOINT_STORE_ID,
     ENABLE_THRESHOLD_ID,
 )
-from utils import must_safe_join, merge_vtk_datasets, get_scalar_names
+from utils import must_safe_join, merge_vtk_datasets
 from vdisplay import ensure_vdisplay
 from timeseries import TimeSeriesMesh
 from representation import MeshRepresentation
@@ -208,13 +208,14 @@ def rerender(
         time_series = TimeSeriesMesh(filepath)
         if n_steps >= time_series.n_slices:
             raise PreventUpdate("No more slices")
-        grid = time_series.read(n_steps, scalars=color_array_name)
+        blocks = time_series.read_blocks(n_steps)
+        _, grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
         if color_array_name:
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
         blocks = pv.read(filepath)
-        grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
+        _, grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
         if color_array_name:
             color_data_range = grid.get_data_range(color_array_name)
 
@@ -730,22 +731,20 @@ def viewer(search, viewport):
     if artifact.endswith(".series"):
         time_series = TimeSeriesMesh(filepath)
         blocks = time_series.read_blocks(0)
-        array_names = get_scalar_names(blocks)
-        grid, has_missing = merge_vtk_datasets(blocks)
+        array_names, grid, has_missing = merge_vtk_datasets(blocks)
         if array_names:
             color_array_name = array_names[0]
             if has_missing:
-                grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
+                _, grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
             ranges = time_series.get_ranges()
             color_data_range = ranges.get(color_array_name)
     else:
         blocks = pv.read(filepath)
-        array_names = get_scalar_names(blocks)
-        grid, has_missing = merge_vtk_datasets(blocks)
+        array_names, grid, has_missing = merge_vtk_datasets(blocks)
         if array_names:
             color_array_name = array_names[0]
             if has_missing:
-                grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
+                _, grid, _ = merge_vtk_datasets(blocks, scalars=color_array_name)
             color_data_range = grid.get_data_range(color_array_name)
     colormap_view_style = Patch()
     if not array_names:

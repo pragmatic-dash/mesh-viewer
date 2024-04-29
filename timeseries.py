@@ -33,10 +33,6 @@ class TimeSeriesMesh:
         slice_file = self.root / filename
         return pv.read(slice_file)
 
-    def read(self, slice: int = 0, scalars=None):
-        blocks = self.read_blocks(slice)
-        return merge_vtk_datasets(blocks, scalars=scalars)
-
     def get_ranges(self):
         range_cache_filepath = self.root / ".ranges.json"
         if range_cache_filepath.exists():
@@ -56,8 +52,8 @@ class TimeSeriesMesh:
     def compute_ranges(self):
         ranges = {}
         for i in range(self.n_slices):
-            grid, _ = self.read(i)
-            array_names = grid.point_data.keys() + grid.cell_data.keys()
+            blocks = self.read_blocks(i)
+            array_names, grid, _ = merge_vtk_datasets(blocks)
             for name in array_names:
                 min_val, max_val = ranges.get(name) or [
                     sys.float_info.max,

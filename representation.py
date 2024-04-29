@@ -135,12 +135,15 @@ class MeshRepresentation:
             and color_data_range is not None
         )
         mapper = {
-            "scalarMode": 3,
+            "scalarMode": 0,
+            "colorMode": 1,
             "scalarVisibility": True,
             "interpolateScalarsBeforeMapping": True,
+            "scalarRange": color_data_range,
         }
         if color_array_name:
             mapper["colorByArrayName"] = color_array_name
+
         return View(
             GeometryRepresentation(
                 [
@@ -148,6 +151,9 @@ class MeshRepresentation:
                 ],
                 showScalarBar=showScalarBar,
                 scalarBarTitle=(color_array_name if showScalarBar else None),
+                scalarBarStyle={
+                    "automated": True,
+                },
                 mapper=mapper,
                 actor={},
                 colorMapPreset=(color_map if showScalarBar else None),

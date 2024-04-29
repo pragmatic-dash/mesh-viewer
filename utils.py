@@ -38,7 +38,35 @@ def merge_vtk_datasets(datasets, scalars=None):
         scalars = get_scalar_names(datasets)
     elif not isinstance(scalars, list):
         scalars = [scalars]
-    return _merge_vtk_datasets(datasets, scalars=scalars)
+    scalars = [i.split("#")[0] for i in scalars]
+
+    array_names = []
+    grid, has_missing = _merge_vtk_datasets(datasets, scalars=scalars)
+    if grid:
+        if isinstance(grid, pv.PolyData):
+            for name in get_scalar_names(grid):
+                data_array = grid.get_array(name)
+                ndim = data_array.shape[1] if data_array.ndim > 1 else 1
+                if ndim == 1:
+                    array_names.append(name)
+                    continue
+                for i in range(ndim):
+                    array_names.append(f"{name}#{i}")
+                    if name in grid.point_data:
+                        grid.point_data.set_array(data_array[:, i], f"{name}#{i}")
+                    elif name in grid.cell_data:
+                        grid.cell_data.set_array(data_array[:, i], f"{name}#{i}")
+                if name in grid.point_data:
+                    grid.point_data.remove(name)
+                elif name in grid.cell_data:
+                    grid.cell_data.remove(name)
+        else:
+            array_names = get_scalar_names(grid)
+    return (
+        array_names,
+        grid,
+        has_missing,
+    )
 
 
 def _merge_vtk_datasets(datasets, scalars):
