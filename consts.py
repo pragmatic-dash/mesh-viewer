@@ -49,6 +49,7 @@ OPACITY_SLIDER_ID = DashIDGenerator(type="slider", name="opacity")
 POINT_SIZE_SLIDER_ID = DashIDGenerator(type="slider", name="point-size")
 LINE_WIDTH_SLIDER_ID = DashIDGenerator(type="slider", name="line-width")
 SHOW_SCALAR_BAR_ID = DashIDGenerator(type="checkbox", name="show-scalar-bar")
+ENABLE_THRESHOLD_ID = DashIDGenerator(type="checkbox", name="enable-threshold")
 BACKGROUND_COLOR_PICKER_ID = DashIDGenerator(
     type="color-picker", name="background-color"
 )

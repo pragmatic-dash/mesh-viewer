@@ -43,6 +43,7 @@ from consts import (
     RERENDER_LOADING_ID,
     ACTION_STORE_ID,
     CHECKPOINT_STORE_ID,
+    ENABLE_THRESHOLD_ID,
 )
 from utils import must_safe_join, merge_vtk_datasets, get_scalar_names
 from vdisplay import ensure_vdisplay
@@ -141,6 +142,7 @@ def save_viewport(width: str, height: str):
         State("viewport", "data"),
         OPTIONS_STORE_ID.get_state("data"),
         PLAY_INTERVAL_ID.get_state("disabled"),
+        ENABLE_THRESHOLD_ID.get_state("on"),
     ],
     running=[
         (
@@ -169,6 +171,7 @@ def rerender(
     viewport,
     saved_options,
     interval_disabled,
+    enable_threshold,
 ):
     options = Patch()
     artifact = get_option(saved_options, ARTIFACT_STORE_ID)
@@ -238,6 +241,7 @@ def rerender(
         rotate_x=rotate_x,
         rotate_y=rotate_y,
         point_size=point_size,
+        enable_threshold=enable_threshold,
         threshold=threshold,
         background_color=background_color["hex"],
         line_width=line_size,
@@ -384,6 +388,7 @@ DEFAULT_OPTIONS = {
     str(THRESHOLD_RANGE_SLIDER_LOWER_ID): None,
     str(ROTATE_Y_SLIDER_ID): 0,
     str(TIME_SLIDER_ID): 0,
+    str(ENABLE_THRESHOLD_ID): False,
 }
 app.layout = html.Div(
     [
@@ -607,6 +612,19 @@ app.layout = html.Div(
                                 id=ROTATE_Y_SLIDER_ID.get_identifier(),
                                 value=get_option(DEFAULT_OPTIONS, ROTATE_Y_SLIDER_ID),
                                 marks={i: str(i) for i in range(0, 361, 45)},
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                        },
+                    ),
+                    html.Div(
+                        [
+                            html.Caption("Enable Threshold"),
+                            daq.BooleanSwitch(
+                                id=ENABLE_THRESHOLD_ID.get_identifier(),
+                                on=DEFAULT_OPTIONS[str(ENABLE_THRESHOLD_ID)],
                             ),
                         ],
                         style={
